@@ -1,0 +1,50 @@
+server:
+  port: 10000
+
+spring:
+  application:
+    name: promotion-gateway
+  cloud:
+    consul:
+      host: 127.0.0.1
+      port: 8500
+      discovery:
+        service-name: ${spring.application.name}
+        prefer-ip-address: true
+        health-check-path: /actuator/health
+        heartbeat:
+          enabled: true
+    gateway:
+      routes:
+        - id: promotion-merchant-admin
+          uri: lb://promotion-merchant-admin/api/merchant-admin/**
+          predicates:
+            - Path=/api/merchant-admin/**
+        - id: promotion-engine
+          uri: lb://promotion-engine/api/engine/**
+          predicates:
+            - Path=/api/engine/**
+
+        - id: promotion-settlement
+          uri: lb://promotion-settlement/api/settlement/**
+          predicates:
+            - Path=/api/settlement/**
+
+        - id: promotion-distribution
+          uri: lb://promotion-distribution/api/distribution/**
+          predicates:
+            - Path=/api/distribution/**
+
+        - id: promotion-search
+          uri: lb://promotion-search/api/search/**
+          predicates:
+            - Path=/api/search/**
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: '*'
+  metrics:
+    tags:
+      application: ${spring.application.name}
