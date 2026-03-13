@@ -120,4 +120,3 @@ Since the target architecture removes Sentinel, rate limiting and circuit breaki
 - **Gateway**: North–south gateway is provided by K8s-native Ingress/Gateway API, NGINX, or Consul API Gateway, depending on your chosen operational model.  
 - **Rate limiting & resilience**: Sentinel is removed; responsibilities move to gateway components plus Resilience4j-style application-level resilience.  
 - Together with the CQRS + Saga + TiDB + RocketMQ blueprint from docs 02/03, this forms a coherent, fully cloud-native target architecture.
-
