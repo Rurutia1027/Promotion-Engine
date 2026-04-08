@@ -1,3 +1,5 @@
 /.idea/
 /promotion-api/target/
 /gateway/target/
+/merchant-service/target/
+/common/target/
