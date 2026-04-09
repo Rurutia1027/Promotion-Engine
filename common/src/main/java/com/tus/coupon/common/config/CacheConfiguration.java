@@ -6,6 +6,8 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
+import java.util.Optional;
+
 @RequiredArgsConstructor
 @EnableConfigurationProperties(RedisDistributedProperties.class)
 public class CacheConfiguration implements InitializingBean {
@@ -14,11 +16,14 @@ public class CacheConfiguration implements InitializingBean {
 
     @Bean
     public RedisKeySerializer redisKeySerializer() {
-        return null;
+        String prefix = Optional.ofNullable(redisDistributedProperties.getPrefix())
+                .orElse("");
+        String prefixCharset = redisDistributedProperties.getPrefixCharset();
+        return new RedisKeySerializer(prefix, prefixCharset);
     }
 
     @Override
     public void afterPropertiesSet() throws Exception {
-
+        stringRedisTemplate.setKeySerializer(redisKeySerializer());
     }
 }
