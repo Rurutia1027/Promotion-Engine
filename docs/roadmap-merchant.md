@@ -4,32 +4,72 @@
 
 ## Phase 1: Entity First
 
-- Isolated merchant SQL: `db/merchant-admin.sql`
-- Local infra compose: `docker/docker-compose.yaml`
-- Kept scope to merchant only (template + task domain)
+- Isolation merchant SQL: db/merchant-admin.sql
+- Local infra compose: docker/docker-compose.yaml
+- Scope limited to merchant domain (template + task)
 
 ## Phase 2: Controller and API Contract
 
-- Coupon task APIs
+- Coupon Task APIs
     - create task
     - page query task
     - task detail
-- Coupon template APIs
+- Coupon Template APIs
     - create template
     - page query template
     - template detail
     - increase stock
     - terminate template
-- Keep DTO compatibility unless explicitly breaking.
+- Maintain DTO compatibility unless explicitly introducing breaking changes
 
-## Phase 3: Task Flow Optimization
+## Phase 3: Task Flow Stabilization (Excel -> Task -> MQ)
 
-- Optimize task status transitions and idempotency
-- Keep MQ handoff contract stable for downstream distribution
-- Add clear retry/error classification for task send path.
+Primary goal: ensure the end-to-end path is reliable before optimization
 
-## Phase 4: Excel Optimization (merchant side)
+- Ensure Excel-based uploads can consistently:
+    - trigger task creation
+    - complete task transformation
+    - successfully dispatch to MQ
+- Treat this as the critical path: `Excel -> Parsing -> Task -> MQ`
+- Add comprehensive test coverage as safeguards:
+    - file parsing correctness
+    - task creation idempotency
+    - MQ dispatch success/failure handling
+- Establish baseline guarantees:
+    - no task loss
+    - clear failure visibility
+    - retry-safe behavior
 
-- Move heavy parsing/validation out of request hot path.
-- Add pre-validation and clear error feedback for file problems.
-- Keep task creation endpoint lightweight (submit-and-return pattern).
+## Phase 4: Excel Processing Optimization
+
+- Move heavy parsing and validation off the request hot path
+- Introduce pre-validation with clear error feedback
+- Adopt submit-and-return pattern for task creation
+- Prepare for async processing scalability
+
+## Phase 5: Task Orchestration Upgrade (Temporal)
+
+After the core pipeline is stable, evolve scheduling/orchestration layer
+
+- Replace in-app task scheduler with Temporal-based orchestration
+- Improvements introduced
+- Refactor integration with App Service:
+    - clearly define activity boundaries
+    - decouple business logic from orchestration
+    - standardize interfaces between Temporal workflows and services
+
+---
+
+# Key Evolution Strategy
+
+First: correctness
+
+- Ensure Excel -> Task -> MQ path is reliable
+
+Then: safety
+
+- Add test coverage and failure handling
+
+Finally: architecture upgrade
+
+- Introduce Temporal for orchestration nd observability 
