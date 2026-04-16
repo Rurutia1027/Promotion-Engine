@@ -1,0 +1,12 @@
+package com.tus.coupon.common.idempotent;
+
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
+
+@Target(ElementType.METHOD)
+@Retention(RetentionPolicy.RUNTIME)
+public @interface NoDuplicateSubmit {
+    String message() default "operation too frequent, please wait and try again";
+}

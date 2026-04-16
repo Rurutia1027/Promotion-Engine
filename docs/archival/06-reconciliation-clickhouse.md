@@ -28,11 +28,11 @@
 
 #### 2.1 Main flow: business events -> ClickHouse
 
-![](./pics/pic-reconciliation-flow.png)
+![](picsic-reconciliation-flow.png)
 
 #### 2.2 Reconciliation: engine vs settlement vs recon
 
-![](./pics/reconciliation-diagram.png)
+![](picseconciliation-diagram.png)
 
 ---
 
