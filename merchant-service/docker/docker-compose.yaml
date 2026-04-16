@@ -1,0 +1,26 @@
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: coupon-merchant-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: coupon_merchant
+      TZ: Asia/Shanghai
+    ports:
+      - "3307:3306"
+    command:
+      - --default-authentication-plugin=mysql_native_password
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_general_cli
+    volumes:
+      - ./init:/docker-entrypoint-initdb.d
+      - ../db/merchant-admin.sql:/docker-entrypoint-initdb.d/10-merchant-admin.sql:ro
+
+  redis:
+    image: redis:7-alpine
+    container_name: coupon-merchant-redis
+    restart: unless-stopped
+    ports:
+      - "6380:6379"
+    command: [ "redis-server", "--appendonly", "yes", "--requirepass", "123456" ]

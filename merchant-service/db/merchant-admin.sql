@@ -4,8 +4,8 @@
 -- - coupon task management
 -- Excludes distribution/engine/settlement tables.
 
-CREATE DATABASE IF NOT EXISTS one_coupon_merchant DEFAULT CHARACTER SET utf8mb4;
-USE one_coupon_merchant;
+CREATE DATABASE IF NOT EXISTS coupon_merchant DEFAULT CHARACTER SET utf8mb4;
+USE coupon_merchant;
 
 CREATE TABLE IF NOT EXISTS `t_user`
 (
