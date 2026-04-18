@@ -10,6 +10,7 @@
     <modules>
         <module>merchant-service</module>
         <module>common</module>
+        <module>distribution-service</module>
     </modules>
 
     <properties>
