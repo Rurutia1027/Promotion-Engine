@@ -1,4 +1,4 @@
-package com.tus.coupon.merchant.dao.entity;
+package com.tus.coupon.common.dao.entity;
 
 // TODO: coupon template log should be wrapped and encapsulate into events
 // TODO: let  fluent bit/logstash push to the ELK log center rather than holding in

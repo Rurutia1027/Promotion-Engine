@@ -1,7 +1,7 @@
-package com.tus.coupon.merchant.dao.mapper;
+package com.tus.coupon.common.dao.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
-import com.tus.coupon.merchant.dao.entity.CouponTaskDO;
+import com.tus.coupon.common.dao.entity.CouponTaskDO;
 
 public interface CouponTaskMapper extends BaseMapper<CouponTaskDO> {
 }

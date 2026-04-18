@@ -1,4 +1,4 @@
-package com.tus.coupon.merchant.dao.entity;
+package com.tus.coupon.common.dao.entity;
 
 import com.baomidou.mybatisplus.annotation.FieldFill;
 import com.baomidou.mybatisplus.annotation.TableField;

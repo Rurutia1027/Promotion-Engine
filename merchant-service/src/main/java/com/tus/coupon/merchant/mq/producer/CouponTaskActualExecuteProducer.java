@@ -3,8 +3,7 @@ package com.tus.coupon.merchant.mq.producer;
 import cn.hutool.core.util.StrUtil;
 import com.tus.coupon.common.mq.base.BaseSendExtendDTO;
 import com.tus.coupon.common.mq.base.MessageWrapper;
-import com.tus.coupon.merchant.common.constant.MerchantAdminRocketMQConstant;
-import com.tus.coupon.merchant.mq.event.CouponTaskExecuteEvent;
+import com.tus.coupon.common.mq.event.CouponTaskExecuteEvent;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.rocketmq.common.message.MessageConst;
 import org.apache.rocketmq.spring.core.RocketMQTemplate;
@@ -15,6 +14,8 @@ import org.springframework.messaging.support.MessageBuilder;
 import org.springframework.stereotype.Component;
 
 import java.util.UUID;
+
+import static com.tus.coupon.common.mq.constant.MerchantDistributeCouponsRocketMQConstant.TEMPLATE_TASK_EXECUTE_TOPIC_KEY;
 
 // coupon delivery task executor side's producer
 @Slf4j
@@ -33,7 +34,7 @@ public class CouponTaskActualExecuteProducer extends AbstractCommonSendProduceTe
         return BaseSendExtendDTO.builder()
                 .eventName("Coupon Delivery Task")
                 .keys(String.valueOf(messageSendEvent.getCouponTaskId()))
-                .topic(env.resolvePlaceholders(MerchantAdminRocketMQConstant.TEMPLATE_TASK_EXECUTE_TOPIC_KEY))
+                .topic(env.resolvePlaceholders(TEMPLATE_TASK_EXECUTE_TOPIC_KEY))
                 .sentTimeout(2000L)
                 .build();
     }

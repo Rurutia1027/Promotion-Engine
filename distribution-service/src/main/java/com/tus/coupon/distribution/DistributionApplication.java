@@ -9,7 +9,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  */
 
 @SpringBootApplication
-@MapperScan("com.tus.coupon.distribution.dao.mapper")
+@MapperScan("com.tus.coupon.common.dao.mapper")
 public class DistributionApplication {
     public static void main(String[] args) {
         SpringApplication.run(DistributionApplication.class, args);

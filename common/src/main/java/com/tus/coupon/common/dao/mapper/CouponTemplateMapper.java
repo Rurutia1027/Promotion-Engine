@@ -1,7 +1,7 @@
-package com.tus.coupon.merchant.dao.mapper;
+package com.tus.coupon.common.dao.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
-import com.tus.coupon.merchant.dao.entity.CouponTemplateDO;
+import com.tus.coupon.common.dao.entity.CouponTemplateDO;
 import org.springframework.data.repository.query.Param;
 
 public interface CouponTemplateMapper extends BaseMapper<CouponTemplateDO> {
