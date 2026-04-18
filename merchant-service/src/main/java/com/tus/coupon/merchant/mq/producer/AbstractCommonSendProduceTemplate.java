@@ -1,7 +1,7 @@
 package com.tus.coupon.merchant.mq.producer;
 
 import cn.hutool.core.util.StrUtil;
-import com.tus.coupon.merchant.mq.base.BaseSendExtendDTO;
+import com.tus.coupon.common.mq.base.BaseSendExtendDTO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.rocketmq.client.producer.SendResult;

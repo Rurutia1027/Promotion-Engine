@@ -1,4 +1,4 @@
-package com.tus.coupon.merchant.mq.base;
+package com.tus.coupon.common.mq.base;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

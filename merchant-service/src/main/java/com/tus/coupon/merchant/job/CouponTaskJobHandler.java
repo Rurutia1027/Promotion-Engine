@@ -9,6 +9,7 @@ import com.tus.coupon.merchant.common.enums.CouponTaskStatusEnum;
 import com.tus.coupon.merchant.dao.entity.CouponTaskDO;
 import com.tus.coupon.merchant.dao.mapper.CouponTaskMapper;
 import com.tus.coupon.merchant.mq.event.CouponTaskExecuteEvent;
+import com.tus.coupon.merchant.mq.producer.CouponTaskActualExecuteProducer;
 import com.xxl.job.core.handler.IJobHandler;
 import com.xxl.job.core.handler.annotation.XxlJob;
 import io.swagger.v3.oas.annotations.Operation;
@@ -49,7 +50,7 @@ import java.util.List;
 @Tag(name = "Coupon Scheduler for Coupon Distribution Task")
 public class CouponTaskJobHandler extends IJobHandler {
     private final CouponTaskMapper couponTaskMapper;
-    // private final CouponTaskActualExecuteProducer couponTaskActualExecuteProducer;
+     private final CouponTaskActualExecuteProducer couponTaskActualExecuteProducer;
 
     // TODO (scheduler): Make batch size configurable (profile/env) and validate against
     //  DB/index capabilities.
@@ -133,6 +134,7 @@ public class CouponTaskJobHandler extends IJobHandler {
                 .couponTaskId(couponTask.getId())
                 .build();
         // wrap each task into message event and send the message to MQ
+        couponTaskActualExecuteProducer.sendMessage(couponTaskExecuteEvent);
     }
 
     private List<CouponTaskDO> fetchPendingTasks(long initId, Date now) {
