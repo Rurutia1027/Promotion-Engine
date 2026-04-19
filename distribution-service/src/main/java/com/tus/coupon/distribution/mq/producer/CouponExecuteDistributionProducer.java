@@ -5,5 +5,5 @@ import org.springframework.stereotype.Component;
 
 @Slf4j
 @Component
-public class CouponExecuteDistributionProducer {
+public class CouponExecuteDistributionProducer   {
 }
