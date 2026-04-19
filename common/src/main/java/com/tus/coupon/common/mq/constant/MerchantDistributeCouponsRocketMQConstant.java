@@ -8,6 +8,7 @@ public final class MerchantDistributeCouponsRocketMQConstant {
     public static final String TEMPLATE_TASK_EXECUTE_TOPIC_KEY = "coupon_distribution" +
             "-service_coupon-task-execute_topic${unique-name:}";
 
+    // todo: extract to common folder as rocket mq constants
     // coupon template delivery execute topic's consumer group
     public static final String TEMPLATE_TASK_EXECUTE_CG_KEY = "coupon_distribution" +
             "-service_coupon-task-execute_cg${unique-name:}";
