@@ -1,39 +1,65 @@
 package com.tus.coupon.distribution.mq.consumer;
 
 import cn.hutool.core.collection.CollUtil;
+import cn.hutool.core.date.DateTime;
+import cn.hutool.core.date.DateUtil;
+import cn.hutool.core.lang.Singleton;
 import cn.hutool.core.map.MapUtil;
+import cn.hutool.core.util.IdUtil;
+import cn.hutool.core.util.StrUtil;
 import com.alibaba.excel.EasyExcel;
 import com.alibaba.excel.ExcelWriter;
 import com.alibaba.excel.write.metadata.WriteSheet;
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONObject;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.baomidou.mybatisplus.extension.toolkit.SqlHelper;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tus.coupon.common.constants.DistributionRocketMQConstant;
 import com.tus.coupon.common.dao.entity.CouponTaskDO;
 import com.tus.coupon.common.dao.entity.CouponTaskFailDO;
+import com.tus.coupon.common.dao.entity.CouponTemplateDO;
+import com.tus.coupon.common.dao.entity.UserCouponDO;
 import com.tus.coupon.common.dao.mapper.CouponTaskFailMapper;
 import com.tus.coupon.common.dao.mapper.CouponTaskMapper;
 import com.tus.coupon.common.dao.mapper.CouponTemplateMapper;
 import com.tus.coupon.common.dao.mapper.UserCouponMapper;
+import com.tus.coupon.common.enums.CouponSourceEnum;
+import com.tus.coupon.common.enums.CouponStatusEnum;
 import com.tus.coupon.common.enums.CouponTaskStatusEnum;
 import com.tus.coupon.common.mq.base.MessageWrapper;
 import com.tus.coupon.distribution.common.DistributionRedisConstant;
+import com.tus.coupon.distribution.common.EngineRedisConstant;
 import com.tus.coupon.distribution.mq.event.CouponTemplateDistributionEvent;
 import com.tus.coupon.distribution.service.handler.UserCouponTaskFailExcelObject;
 import lombok.RequiredArgsConstructor;
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.ibatis.executor.BatchExecutorException;
 import org.apache.rocketmq.spring.annotation.RocketMQMessageListener;
 import org.apache.rocketmq.spring.core.RocketMQListener;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
+import org.springframework.scripting.support.ResourceScriptSource;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.nio.file.Paths;
+import java.time.Duration;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
+
+import static com.tus.coupon.distribution.common.EngineRedisConstant.USER_COUPON_TEMPLATE_LIMIT_KEY;
 
 // dispatch coupon to specific user and update user records
 
@@ -165,11 +191,200 @@ public class CouponExecuteDistributionConsumer implements RocketMQListener<Messa
         }
     }
 
+    @SneakyThrows
     private void decrementCouponTemplateStockAndSaveUserCouponList(CouponTemplateDistributionEvent event) {
+        // if ret value <= 0 means coupon stock out of usage , return
+        Integer couponTemplateStock = decrementCouponTemplateStock(event,
+                event.getBatchUserSetSize());
+        if (couponTemplateStock <= 0) {
+            return;
+        }
+
+        // fetch batch user set from redis cache
+        String batchUserSetKey =
+                String.format(DistributionRedisConstant.TEMPLATE_TASK_EXECUTE_BATCH_USER_KEY,
+                        event.getCouponTaskId());
+        List<String> batchUserMaps = stringRedisTemplate.opsForSet().pop(batchUserSetKey,
+                couponTemplateStock);
+
+        List<UserCouponDO> userCouponDOList = new ArrayList<>(batchUserMaps.size());
+        Date now = new Date();
+
+        // construct user coupon list via the set of user info that are fetch from redis cache
+        for (String each : batchUserMaps) {
+            JSONObject userIdAndRowNumJsonObj = JSON.parseObject(each);
+            DateTime validEndTime = DateUtil.offsetHour(now,
+                    JSON.parseObject(event.getCouponTemplateConsumeRule()).getInteger(
+                            "validityPeriod"));
+            UserCouponDO userCouponDO = UserCouponDO.builder()
+                    .id(IdUtil.getSnowflakeNextId())
+                    .couponTemplateId(event.getCouponTemplateId())
+                    .rowNum(userIdAndRowNumJsonObj.getInteger("rowNum"))
+                    .userId(userIdAndRowNumJsonObj.getLong("userId"))
+                    .receiveTime(now)
+                    .receiveCount(1) // first time to fetch coupon
+                    .validStartTime(now)
+                    .source(CouponSourceEnum.PLATFORM.getType())
+                    .status(CouponStatusEnum.EFFECTIVE.getType())
+                    .createTime(new Date())
+                    .updateTime(new Date())
+                    .delFlag(0)
+                    .build();
+
+            userCouponDOList.add(userCouponDO);
+        }
+
+        // platform coupon each user only allowed to retrieve once
+        batchSaveUserCouponList(event.getCouponTemplateId(), event.getCouponTaskBatchId(),
+                userCouponDOList);
+
+        // update all the current user coupon do list to the user who received coupons records
+        List<String> userIdList = userCouponDOList.stream()
+                .map(UserCouponDO::getUserId)
+                .map(String::valueOf)
+                .toList();
+
+        String userIdsJson = new ObjectMapper().writeValueAsString(userIdList);
+        List<String> couponIdList = userCouponDOList.stream()
+                .map(each -> StrUtil.builder()
+                        .append(event.getCouponTemplateId())
+                        .append("_")
+                        .append(each.getId())
+                        .toString())
+                .map(String::valueOf)
+                .toList();
+
+        String couponIdsJson = new ObjectMapper().writeValueAsString(couponIdList);
+
+        // here we invoke lua script and passing context wrapped variables
+        List<String> keys = Arrays.asList(
+                StrUtil.replace(EngineRedisConstant.USER_COUPON_TEMPLATE_LIST_KEY, "%s", ""),
+                USER_COUPON_TEMPLATE_LIMIT_KEY,
+                String.valueOf(event.getCouponTemplateId())
+        );
+
+        List<String> args = Arrays.asList(
+                userIdsJson,
+                couponIdsJson,
+                String.valueOf(new Date().getTime()),
+                String.valueOf(
+                        Duration.between(
+                                LocalDateTime.now(),
+                                event.getValidEndTime().toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime()
+                        ).getSeconds()
+                )
+        );
+        DefaultRedisScript<Void> buildLuaScript = Singleton.get(BATCH_SAVE_USER_COUPON_LUA_PATH,
+                () -> {
+                    DefaultRedisScript<Void> redisScript = new DefaultRedisScript<>();
+                    redisScript.setScriptSource(new ResourceScriptSource(new ClassPathResource(BATCH_SAVE_USER_COUPON_LUA_PATH)));
+                    redisScript.setResultType(Void.class);
+                    return redisScript;
+                });
+        stringRedisTemplate.execute(buildLuaScript, keys, args.toArray());
+
+        // here we add increase stock roll back solution, suppose user already receive
+        // coupon and validated, service need rollback the stock
+        int originalUserCouponSize = batchUserMaps.size();
+        int availableUserCouponSize = userCouponDOList.size();
+        int rollbackStock = originalUserCouponSize - availableUserCouponSize;
+        if (rollbackStock > 0) {
+            stringRedisTemplate.opsForHash().increment(
+                    String.format(EngineRedisConstant.COUPON_TEMPLATE_KEY, event.getCouponTemplateId()),
+                    "stock",
+                    rollbackStock
+            );
+
+            couponTemplateMapper.increaseNumberCouponTemplate(event.getShopNumber(),
+                    event.getCouponTemplateId(), rollbackStock);
+        }
+    }
+
+    private void batchSaveUserCouponList(Long couponTemplateId, Long couponTaskBatchId, List<UserCouponDO> userCouponDOList) {
+        try {
+            userCouponMapper.insert(userCouponDOList, userCouponDOList.size());
+        } catch (Exception ex) {
+            Throwable cause = ex.getCause();
+            if (cause instanceof BatchExecutorException) {
+                // record the user coupon distribution failure to db table
+                List<CouponTaskFailDO> couponTaskFailDOList = new ArrayList<>();
+                List<UserCouponDO> toRemove = new ArrayList<>();
+
+                // invoke batch insert failure, to avoid large scale of retry failure, we
+                // insert records to db table one by one
+                userCouponDOList.forEach(each -> {
+                    try {
+                        userCouponMapper.insert(each);
+                    } catch (Exception ignored) {
+                        Boolean hasReceived =
+                                couponExecuteDistributionConsumer.hasUserReceivedCoupon(couponTemplateId, each.getUserId());
+                        if (hasReceived) {
+                            // generate coupon task fail do entity and append to fail do list
+                            Map<Object, Object> objectMap = MapUtil.builder()
+                                    .put("rowNum", each.getRowNum())
+                                    .put("cause", "user has already received coupon before")
+                                    .build();
+                            CouponTaskFailDO couponTaskFailDO = CouponTaskFailDO.builder()
+                                    .batchId(couponTaskBatchId)
+                                    .jsonObject(JSON.toJSONString(objectMap))
+                                    .build();
+                            couponTaskFailDOList.add(couponTaskFailDO);
+
+                            // remove that from user coupon don list
+                            toRemove.add(each);
+                        }
+                    }
+                });
+
+                // batch update t_coupon_task_fail table
+                couponTaskFailMapper.insert(couponTaskFailDOList,
+                        couponTaskFailDOList.size());
+
+                // remove duplicate user info item
+                userCouponDOList.removeAll(toRemove);
+                return;
+            }
+            throw ex;
+        }
+    }
+
+    private Integer decrementCouponTemplateStock(CouponTemplateDistributionEvent event,
+                                                 Integer decrementStockSize) {
+        Long couponTemplateId = event.getCouponTemplateId();
+        int decremented =
+                couponTemplateMapper.decrementCouponTemplateStock(event.getShopNumber(),
+                        couponTemplateId, decrementStockSize);
+
+        // if db modify request failed, it means coupon stock out of usage, requires retry
+        if (!SqlHelper.retBool(decremented)) {
+            LambdaQueryWrapper<CouponTemplateDO> queryWrapper =
+                    Wrappers.lambdaQuery(CouponTemplateDO.class)
+                            .eq(CouponTemplateDO::getShopNumber, event.getShopNumber())
+                            .eq(CouponTemplateDO::getId, couponTemplateId);
+            CouponTemplateDO couponTemplateDO = couponTemplateMapper.selectOne(queryWrapper);
+            return decrementCouponTemplateStock(event, couponTemplateDO.getStock());
+        }
+
+        return decrementStockSize;
     }
 
     private List<CouponTaskFailDO> listUserCouponTaskFail(Long couponTaskBatchId, long initId) {
         // todo 
         return null;
     }
+
+    /**
+     * Validate whether that user has already received the coupon before
+     *
+     * @param couponTemplateId coupon template id
+     * @param userId
+     */
+    @Transactional(propagation = Propagation.NOT_SUPPORTED, readOnly = true)
+    public Boolean hasUserReceivedCoupon(Long couponTemplateId, Long userId) {
+        LambdaQueryWrapper<UserCouponDO> queryWrapper = Wrappers.lambdaQuery(UserCouponDO.class)
+                .eq(UserCouponDO::getUserId, userId)
+                .eq(UserCouponDO::getCouponTemplateId, couponTemplateId);
+        return userCouponMapper.selectOne(queryWrapper) != null;
+    }
+
 }

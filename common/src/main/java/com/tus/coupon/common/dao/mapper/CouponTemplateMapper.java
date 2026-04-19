@@ -14,6 +14,17 @@ public interface CouponTemplateMapper extends BaseMapper<CouponTemplateDO> {
      * @param number           coupon distribution number
      */
     int increaseNumberCouponTemplate(@Param("shopNumber") Long shopNumber,
-                                     @Param("couponTemplateId") String couponTemplateId,
+                                     @Param("couponTemplateId") Long couponTemplateId,
                                      @Param("number") Integer number);
+
+    /**
+     * decrease coupon distribution number
+     *
+     * @param shopNumber
+     * @param couponTemplateId coupon template id
+     * @param decrementStock decrement stock value
+     */
+    int decrementCouponTemplateStock(@Param("shopNumber") Long shopNumber,
+                                     @Param("couponTemplateId") Long couponTemplateId,
+                                     @Param("decrementStock") Integer decrementStock);
 }
