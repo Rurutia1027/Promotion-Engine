@@ -2,6 +2,7 @@ package com.tus.coupon.merchant.service.impl;
 
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.util.IdUtil;
+import com.alibaba.excel.EasyExcel;
 import com.alibaba.fastjson2.JSONObject;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
@@ -20,6 +21,7 @@ import com.tus.coupon.merchant.dto.resp.CouponTemplateQueryRespDTO;
 import com.tus.coupon.merchant.mq.producer.CouponTaskActualExecuteProducer;
 import com.tus.coupon.merchant.service.CouponTaskService;
 import com.tus.coupon.merchant.service.CouponTemplateService;
+import com.tus.coupon.merchant.service.handler.RowCountListener;
 import lombok.RequiredArgsConstructor;
 import org.redisson.api.RBlockingDeque;
 import org.redisson.api.RDelayedQueue;
@@ -97,6 +99,19 @@ public class CouponTaskServiceImpl extends ServiceImpl<CouponTaskMapper, CouponT
                     .build();
             couponTaskActualExecuteProducer.sendMessage(couponTaskExecuteEvent);
         }
+    }
+
+    private void refreshCouponTaskSendNum(JSONObject delayJsonObject) {
+        // fetch all excel row numbers via EasyExcel
+        RowCountListener listener = new RowCountListener();
+        EasyExcel.read(delayJsonObject.getString("fileAddress"), listener).sheet().doRead();
+        int totalRows = listener.getRowCount();
+
+        CouponTaskDO updateCouponTaskDO = CouponTaskDO.builder()
+                .id(delayJsonObject.getLong("couponTaskId"))
+                .sendNum(totalRows)
+                .build();
+        couponTaskMapper.updateById(updateCouponTaskDO);
     }
 
     @Override
