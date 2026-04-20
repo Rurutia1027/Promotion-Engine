@@ -2,9 +2,12 @@ package com.tus.coupon.merchant.service.impl;
 
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.util.IdUtil;
+import cn.hutool.core.util.StrUtil;
 import com.alibaba.excel.EasyExcel;
 import com.alibaba.fastjson2.JSONObject;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.tus.coupon.common.context.UserContext;
 import com.tus.coupon.common.dao.entity.CouponTaskDO;
@@ -22,6 +25,7 @@ import com.tus.coupon.merchant.mq.producer.CouponTaskActualExecuteProducer;
 import com.tus.coupon.merchant.service.CouponTaskService;
 import com.tus.coupon.merchant.service.CouponTemplateService;
 import com.tus.coupon.merchant.service.handler.RowCountListener;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import org.redisson.api.RBlockingDeque;
 import org.redisson.api.RDelayedQueue;
@@ -31,6 +35,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -116,11 +121,58 @@ public class CouponTaskServiceImpl extends ServiceImpl<CouponTaskMapper, CouponT
 
     @Override
     public IPage<CouponTaskPageQueryRespDTO> pageQueryCouponTask(CouponTaskPageQueryReqDTO requestParam) {
-        return null;
+        LambdaQueryWrapper<CouponTaskDO> queryWrapper = Wrappers.lambdaQuery(CouponTaskDO.class)
+                .eq(CouponTaskDO::getShopNumber, UserContext.getShopNumber())
+                .eq(StrUtil.isNotBlank(requestParam.getBatchId()), CouponTaskDO::getBatchId, requestParam.getBatchId())
+                .like(StrUtil.isNotBlank(requestParam.getTaskName()), CouponTaskDO::getTaskName, requestParam.getTaskName())
+                .eq(StrUtil.isNotBlank(requestParam.getCouponTemplateId()), CouponTaskDO::getCouponTemplateId, requestParam.getCouponTemplateId())
+                .eq(Objects.nonNull(requestParam.getStatus()), CouponTaskDO::getStatus, requestParam.getStatus());
+        IPage<CouponTaskDO> selectPage = couponTaskMapper.selectPage(requestParam, queryWrapper);
+
+        return selectPage.convert(each -> BeanUtil.toBean(each, CouponTaskPageQueryRespDTO.class));
     }
 
     @Override
     public CouponTaskQueryRespDTO findCouponTaskById(String taskId) {
-        return null;
+        CouponTaskDO couponTaskDO = couponTaskMapper.selectById(taskId);
+        return BeanUtil.toBean(couponTaskDO, CouponTaskQueryRespDTO.class);
+    }
+
+
+    @PostConstruct
+    public void init() {
+        new RefreshCouponTaskDelayQueueRunner(this, couponTaskMapper, redissonClient).run();
+    }
+
+    @RequiredArgsConstructor
+    static class RefreshCouponTaskDelayQueueRunner {
+        private final CouponTaskServiceImpl couponTaskService;
+        private final CouponTaskMapper couponTaskMapper;
+        private final RedissonClient redissonClient;
+
+        public void run() {
+            Executors.newSingleThreadExecutor(
+                            runnable -> {
+                                Thread thread = new Thread(runnable);
+                                thread.setName("delay_coupon-task_send-num_consumer");
+                                thread.setDaemon(Boolean.TRUE);
+                                return thread;
+                            })
+                    .execute(() -> {
+                        RBlockingDeque<JSONObject> blockingDeque = redissonClient.getBlockingDeque("COUPON_TASK_SEND_NUM_DELAY_QUEUE");
+                        for (; ; ) {
+                            try {
+                                JSONObject delayJsonObject = blockingDeque.take();
+                                if (delayJsonObject != null) {
+                                    CouponTaskDO couponTaskDO = couponTaskMapper.selectById(delayJsonObject.getLong("couponTaskId"));
+                                    if (couponTaskDO.getSendNum() == null) {
+                                        couponTaskService.refreshCouponTaskSendNum(delayJsonObject);
+                                    }
+                                }
+                            } catch (Throwable ignored) {
+                            }
+                        }
+                    });
+        }
     }
 }
