@@ -368,9 +368,13 @@ public class CouponExecuteDistributionConsumer implements RocketMQListener<Messa
         return decrementStockSize;
     }
 
-    private List<CouponTaskFailDO> listUserCouponTaskFail(Long couponTaskBatchId, long initId) {
-        // todo 
-        return null;
+    private List<CouponTaskFailDO> listUserCouponTaskFail(Long batchId, long maxId) {
+        LambdaQueryWrapper<CouponTaskFailDO> queryWrapper =
+                Wrappers.lambdaQuery(CouponTaskFailDO.class)
+                        .eq(CouponTaskFailDO::getBatchId, batchId)
+                        .gt(CouponTaskFailDO::getId, maxId)
+                        .last("LIMIT " + BATCH_USER_COUPON_SIZE);
+        return couponTaskFailMapper.selectList(queryWrapper);
     }
 
     /**
