@@ -1,4 +1,4 @@
-package com.tus.coupon.merchant.common.constant.enums;
+package com.tus.coupon.merchant.common.enums;
 
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
