@@ -153,7 +153,7 @@ public class ReadExcelDistributionListener extends AnalysisEventListener<CouponT
                         .distributionEndFlag(Boolean.FALSE)
                         .build();
 
-        // couponExecuteDistributionProducer.sendMessage(couponTemplateExecuteEvent);
+        couponExecuteDistributionProducer.sendMessage(couponTemplateDistributionEvent);
 
         stringRedisTemplate.opsForValue().set(templateTaskExecuteProgressKey, String.valueOf(rowCount));
         ++rowCount;
@@ -178,6 +178,6 @@ public class ReadExcelDistributionListener extends AnalysisEventListener<CouponT
                 .couponTaskBatchId(couponTaskDO.getBatchId())
                 .couponTaskId(couponTaskDO.getId())
                 .build();
-        // couponExecuteDistributionProducer.sendMessage(couponTemplateExecuteEvent);
+        couponExecuteDistributionProducer.sendMessage(couponTemplateExecuteEvent);
     }
 }
