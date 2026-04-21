@@ -15,7 +15,7 @@ import com.tus.coupon.common.dao.mapper.CouponTaskMapper;
 import com.tus.coupon.common.enums.CouponTaskStatusEnum;
 import com.tus.coupon.common.exception.ClientException;
 import com.tus.coupon.common.mq.event.CouponTaskExecuteEvent;
-import com.tus.coupon.merchant.common.constant.enums.CouponTaskSendTypeEnum;
+import com.tus.coupon.merchant.common.enums.CouponTaskSendTypeEnum;
 import com.tus.coupon.merchant.dto.req.CouponTaskCreateReqDTO;
 import com.tus.coupon.merchant.dto.req.CouponTaskPageQueryReqDTO;
 import com.tus.coupon.merchant.dto.resp.CouponTaskPageQueryRespDTO;
