@@ -11,6 +11,8 @@
         <module>merchant-service</module>
         <module>common</module>
         <module>distribution-service</module>
+        <module>identity-service</module>
+        <module>identity-domain-api</module>
     </modules>
 
     <properties>
