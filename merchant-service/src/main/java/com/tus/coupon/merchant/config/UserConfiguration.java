@@ -32,7 +32,8 @@ public class UserConfiguration implements WebMvcConfigurer {
         @Override
         public boolean preHandle(@Nullable HttpServletRequest request, @Nullable HttpServletResponse response, @Nullable Object handler) throws Exception {
             UserInfoDTO userInfoDTO = new UserInfoDTO(UUID.randomUUID().toString(),
-                    UUID.randomUUID().toString(), UUID.randomUUID().node());
+                    UUID.randomUUID().toString(), UUID.randomUUID().node(),
+                    UUID.randomUUID().toString(), UUID.randomUUID().toString());
             UserContext.setUser(userInfoDTO);
             return true;
         }

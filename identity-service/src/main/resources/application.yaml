@@ -1,0 +1,10 @@
+server:
+  port: 10030
+
+spring:
+  application:
+    name: coupon-identity
+
+mybatis-plus:
+  configuration:
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
