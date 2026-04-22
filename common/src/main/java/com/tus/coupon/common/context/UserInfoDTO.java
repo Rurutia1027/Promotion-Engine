@@ -18,4 +18,10 @@ public class UserInfoDTO {
 
     // shop number
     private Long shopNumber;
+
+    // tenant id
+    private String tenantId;
+
+    // trace id
+    private String traceId;
 }
