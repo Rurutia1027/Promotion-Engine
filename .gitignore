@@ -6,3 +6,5 @@
 /merchant-service/target/
 /distribution-service/target/
 ./merchant-service/target/
+/identity-service/target/
+/identity-domain-api/target/
