@@ -6,18 +6,17 @@ import cn.hutool.core.map.MapUtil;
 import cn.hutool.core.util.StrUtil;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.serializer.SerializerFeature;
-import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.tus.coupon.common.dao.entity.CouponTaskDO;
 import com.tus.coupon.common.dao.entity.CouponTaskFailDO;
 import com.tus.coupon.common.dao.entity.CouponTemplateDO;
-import com.tus.coupon.common.dao.entity.UserDO;
 import com.tus.coupon.common.dao.mapper.CouponTaskFailMapper;
-import com.tus.coupon.common.dao.mapper.UserMapper;
 import com.tus.coupon.distribution.common.DistributionRedisConstant;
 import com.tus.coupon.distribution.common.EngineRedisConstant;
 import com.tus.coupon.distribution.mq.event.CouponTemplateDistributionEvent;
 import com.tus.coupon.distribution.mq.producer.CouponExecuteDistributionProducer;
+import com.tus.coupon.distribution.service.UserRemoteQueryService;
 import com.tus.coupon.distribution.tookit.StockDecrementReturnCombinedUtil;
+import com.tus.coupon.user.api.dto.resp.UserItemRespDTO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -34,41 +33,39 @@ import java.util.Map;
 @Component
 @RequiredArgsConstructor
 public class CouponTaskUserPageHandler {
+
     private static final String STOCK_DECREMENT_AND_BATCH_SAVE_USER_RECORD_LUA_PATH =
             "lua/stock_decrement_and_batch_save_user_record.lua";
     private static final int DEFAULT_PAGE_SIZE = 500;
     private static final int DEFAULT_BATCH_USER_COUPON_SIZE = 5000;
 
-    private final UserMapper userMapper;
+    private final UserRemoteQueryService userRemoteQueryService;
     private final CouponTaskFailMapper couponTaskFailMapper;
     private final StringRedisTemplate stringRedisTemplate;
     private final CouponExecuteDistributionProducer couponExecuteDistributionProducer;
 
-    @org.springframework.beans.factory.annotation.Value("${distribution.task.page-size:" + DEFAULT_PAGE_SIZE + "}")
+    @Value("${distribution.task.page-size:" + DEFAULT_PAGE_SIZE + "}")
     private int pageSize;
 
     @Value("${distribution.task.batch-threshold:" + DEFAULT_BATCH_USER_COUPON_SIZE + "}")
     private int batchThreshold;
 
-    public void executeByUserPages(CouponTaskDO couponTaskDO,
-                                   CouponTemplateDO couponTemplateDO) {
+    public void executeByUserPages(CouponTaskDO couponTaskDO, CouponTemplateDO couponTemplateDO) {
         Long couponTaskId = couponTaskDO.getId();
-        String cursorKey =
-                String.format(DistributionRedisConstant.TEMPLATE_TASK_EXECUTE_CURSOR_KEY,
-                        couponTaskId);
+        String cursorKey = String.format(DistributionRedisConstant.TEMPLATE_TASK_EXECUTE_CURSOR_KEY, couponTaskId);
         long cursor = readCursor(cursorKey);
         int rowNum = 1;
         int processedCount = 0;
         int pageCount = 0;
 
         while (true) {
-            List<UserDO> users = listTaskUsers(couponTaskDO, cursor, pageSize);
+            List<UserItemRespDTO> users = listTaskUsers(couponTaskDO, cursor, pageSize);
             if (users.isEmpty()) {
                 break;
             }
             pageCount++;
 
-            for (UserDO user : users) {
+            for (UserItemRespDTO user : users) {
                 rowNum = processSingleUser(couponTaskDO, couponTemplateDO, user, rowNum, cursorKey);
                 cursor = user.getId();
                 processedCount++;
@@ -84,9 +81,21 @@ public class CouponTaskUserPageHandler {
                 couponTaskId, pageCount, processedCount, cursor);
     }
 
-    private int processSingleUser(CouponTaskDO couponTaskDO, CouponTemplateDO couponTemplateDO,
-                                  UserDO user, int rowNum, String cursorKey) {
+    private List<UserItemRespDTO> listTaskUsers(CouponTaskDO couponTaskDO, Long cursor, int limit) {
+        return userRemoteQueryService.queryMerchantUsers(
+                String.valueOf(couponTaskDO.getShopNumber()),
+                cursor,
+                limit
+        );
+    }
+
+    private int processSingleUser(CouponTaskDO couponTaskDO,
+                                  CouponTemplateDO couponTemplateDO,
+                                  UserItemRespDTO user,
+                                  int rowNum,
+                                  String cursorKey) {
         Long couponTaskId = couponTaskDO.getId();
+
         DefaultRedisScript<Long> buildLuaScript =
                 Singleton.get(STOCK_DECREMENT_AND_BATCH_SAVE_USER_RECORD_LUA_PATH, () -> {
                     DefaultRedisScript<Long> redisScript = new DefaultRedisScript<>();
@@ -96,11 +105,8 @@ public class CouponTaskUserPageHandler {
                     return redisScript;
                 });
 
-        String couponTempalteKey = String.format(EngineRedisConstant.COUPON_TEMPLATE_KEY,
-                couponTemplateDO.getId());
-        String batchUserSetKey =
-                String.format(DistributionRedisConstant.TEMPLATE_TASK_EXECUTE_BATCH_USER_KEY
-                        , couponTaskId);
+        String couponTemplateKey = String.format(EngineRedisConstant.COUPON_TEMPLATE_KEY, couponTemplateDO.getId());
+        String batchUserSetKey = String.format(DistributionRedisConstant.TEMPLATE_TASK_EXECUTE_BATCH_USER_KEY, couponTaskId);
 
         Map<Object, Object> userRowNumMap = MapUtil.builder()
                 .put("userId", String.valueOf(user.getId()))
@@ -109,11 +115,10 @@ public class CouponTaskUserPageHandler {
 
         Long combinedField = stringRedisTemplate.execute(
                 buildLuaScript,
-                ListUtil.of(couponTempalteKey, batchUserSetKey),
+                ListUtil.of(couponTemplateKey, batchUserSetKey),
                 JSON.toJSONString(userRowNumMap));
 
-        boolean firstField =
-                StockDecrementReturnCombinedUtil.extractFirstField(combinedField);
+        boolean firstField = StockDecrementReturnCombinedUtil.extractFirstField(combinedField);
         if (!firstField) {
             stringRedisTemplate.opsForValue().set(cursorKey, String.valueOf(user.getId()));
             int currentRowNum = rowNum + 1;
@@ -129,33 +134,44 @@ public class CouponTaskUserPageHandler {
             return currentRowNum;
         }
 
-        return 0;
-    }
+        int batchUserSetSize = StockDecrementReturnCombinedUtil.extractSecondField(combinedField.intValue());
+        if (batchUserSetSize < batchThreshold && StrUtil.isBlank(couponTaskDO.getNotifyType())) {
+            stringRedisTemplate.opsForValue().set(cursorKey, String.valueOf(user.getId()));
+            return rowNum + 1;
+        }
 
-    private List<UserDO> listTaskUsers(CouponTaskDO couponTaskDO, long cursor, int limit) {
-        return userMapper.selectList(Wrappers.lambdaQuery(UserDO.class)
-                .eq(UserDO::getShopNumber, String.valueOf(couponTaskDO.getShopNumber()))
-                .eq(UserDO::getDelFlag, 0)
-                .gt(UserDO::getId, cursor)
-                .orderByAsc(UserDO::getId)
-                .last("LIMIT " + limit));
-    }
-
-    // take consideration of WAL for better durability and failure recovery ability
-    private void sendFinalizeEvent(CouponTaskDO couponTaskDO,
-                                   CouponTemplateDO couponTemplateDO) {
         CouponTemplateDistributionEvent couponTemplateDistributionEvent =
                 CouponTemplateDistributionEvent.builder()
-                        .distributionEndFlag(Boolean.TRUE)
+                        .userId(String.valueOf(user.getId()))
+                        .mail(user.getMail())
+                        .phone(user.getPhone())
+                        .couponTaskId(couponTaskId)
+                        .notifyType(couponTaskDO.getNotifyType())
                         .shopNumber(couponTaskDO.getShopNumber())
                         .couponTemplateId(couponTemplateDO.getId())
                         .validEndTime(couponTemplateDO.getValidEndTime())
-                        .couponTemplateConsumeRule(couponTemplateDO.getConsumeRule())
-                        // here 1 task : N batch
                         .couponTaskBatchId(couponTaskDO.getBatchId())
-                        .couponTaskId(couponTaskDO.getId())
+                        .couponTemplateConsumeRule(couponTemplateDO.getConsumeRule())
+                        .batchUserSetSize(batchUserSetSize)
+                        .distributionEndFlag(Boolean.FALSE)
                         .build();
+
         couponExecuteDistributionProducer.sendMessage(couponTemplateDistributionEvent);
+        stringRedisTemplate.opsForValue().set(cursorKey, String.valueOf(user.getId()));
+        return rowNum + 1;
+    }
+
+    private void sendFinalizeEvent(CouponTaskDO couponTaskDO, CouponTemplateDO couponTemplateDO) {
+        CouponTemplateDistributionEvent couponTemplateExecuteEvent = CouponTemplateDistributionEvent.builder()
+                .distributionEndFlag(Boolean.TRUE)
+                .shopNumber(couponTaskDO.getShopNumber())
+                .couponTemplateId(couponTemplateDO.getId())
+                .validEndTime(couponTemplateDO.getValidEndTime())
+                .couponTemplateConsumeRule(couponTemplateDO.getConsumeRule())
+                .couponTaskBatchId(couponTaskDO.getBatchId())
+                .couponTaskId(couponTaskDO.getId())
+                .build();
+        couponExecuteDistributionProducer.sendMessage(couponTemplateExecuteEvent);
     }
 
     private long readCursor(String cursorKey) {
