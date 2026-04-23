@@ -8,6 +8,11 @@ public final class DistributionRedisConstant {
     public static final String TEMPLATE_TASK_EXECUTE_PROGRESS_KEY = "coupon_distribution:template-task-execute-progress:%s";
 
     /**
+     * Coupon template delivery cursor redis key
+     */
+    public static final String TEMPLATE_TASK_EXECUTE_CURSOR_KEY = "coupon_distribution:template-task-execute-cursor:%s";
+
+    /**
      * Coupon batch save coupon receive user redis key
      */
     public static final String TEMPLATE_TASK_EXECUTE_BATCH_USER_KEY = "coupon_distribution:template-task-execute-batch-user:%s";
