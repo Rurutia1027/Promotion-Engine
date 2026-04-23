@@ -22,6 +22,9 @@ public class UserDO {
     // shop number
     private String shopNumber;
 
+    // user type for user-service domain: MERCHANT / CONSUMER
+    private String userType;
+
     // username
     private String username;
 
