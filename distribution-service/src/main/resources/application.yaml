@@ -25,6 +25,8 @@ coupon:
     feign:
       remote-url:
         engine: http://127.0.0.1:10020
+        # TODO: Remove this direct URL after migrating to Consul-based discovery for coupon-user.
+        user: http://127.0.0.1:10031
 
 mybatis-plus:
   configuration:
@@ -38,3 +40,8 @@ rocketmq:
     send-message-timeout: 2000
     retry-times-when-send-failed: 1
     retry-times-when-send-async-failed: 1
+
+distribution:
+  task:
+    page-size: 500
+    batch-threshold: 5000

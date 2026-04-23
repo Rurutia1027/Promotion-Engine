@@ -27,6 +27,7 @@ import java.util.Map;
 
 import static com.tus.coupon.distribution.common.DistributionRedisConstant.TEMPLATE_TASK_EXECUTE_PROGRESS_KEY;
 
+@Deprecated
 // coupon excel record read and task convert listener
 @RequiredArgsConstructor
 public class ReadExcelDistributionListener extends AnalysisEventListener<CouponTaskExcelObject> {

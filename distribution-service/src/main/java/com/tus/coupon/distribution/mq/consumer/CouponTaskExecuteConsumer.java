@@ -14,6 +14,7 @@ import com.tus.coupon.common.mq.base.MessageWrapper;
 import com.tus.coupon.common.mq.event.CouponTaskExecuteEvent;
 import com.tus.coupon.distribution.mq.producer.CouponExecuteDistributionProducer;
 import com.tus.coupon.distribution.service.handler.CouponTaskExcelObject;
+import com.tus.coupon.distribution.service.handler.CouponTaskUserPageHandler;
 import com.tus.coupon.distribution.service.handler.ReadExcelDistributionListener;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -35,9 +36,8 @@ import static com.tus.coupon.common.mq.constant.MerchantDistributeCouponsRocketM
 public class CouponTaskExecuteConsumer implements RocketMQListener<MessageWrapper<CouponTaskExecuteEvent>> {
     private final CouponTaskMapper couponTaskMapper;
     private final CouponTemplateMapper couponTemplateMapper;
-    private final CouponTaskFailMapper couponTaskFailMapper;
-    private final StringRedisTemplate stringRedisTemplate;
-    private final CouponExecuteDistributionProducer couponExecutionDistributionProduer;
+    private final CouponTaskUserPageHandler couponTaskUserPageHandler;
+
 
     @NoMQDuplicateConsume(
             keyPrefix = "coupon_task_execute:idempotent",
@@ -66,17 +66,8 @@ public class CouponTaskExecuteConsumer implements RocketMQListener<MessageWrappe
             return;
         }
 
-        // begin deliver coupons
-        ReadExcelDistributionListener readExcelDistributionListener = new ReadExcelDistributionListener(
-                couponTaskDO,
-                couponTemplateDO,
-                couponTaskFailMapper,
-                stringRedisTemplate,
-                couponExecutionDistributionProduer
-        );
-
-        EasyExcel.read(couponTaskDO.getFileAddress(), CouponTaskExcelObject.class, readExcelDistributionListener)
-                .sheet().doRead();
+        // begin deliver coupons by paging user directly from db
+        couponTaskUserPageHandler.executeByUserPages(couponTaskDO, couponTemplateDO);
     }
 
 }
