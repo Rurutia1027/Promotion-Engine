@@ -8,3 +8,7 @@
 ./merchant-service/target/
 /identity-service/target/
 /identity-domain-api/target/
+/user-service/target/
+/user-domain-api/target/
+/identity-service/docker/mysql-data/
+/identity-service/docker/redis-data/
