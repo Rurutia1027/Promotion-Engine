@@ -13,6 +13,8 @@
         <module>distribution-service</module>
         <module>identity-service</module>
         <module>identity-domain-api</module>
+        <module>user-service</module>
+        <module>user-domain-api</module>
     </modules>
 
     <properties>

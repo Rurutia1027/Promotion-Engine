@@ -12,3 +12,5 @@
 /user-domain-api/target/
 /identity-service/docker/mysql-data/
 /identity-service/docker/redis-data/
+/user-service/docker/mysql-data/
+/user-service/docker/redis-data/
