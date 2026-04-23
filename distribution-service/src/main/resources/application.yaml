@@ -25,6 +25,7 @@ coupon:
     feign:
       remote-url:
         engine: http://127.0.0.1:10020
+        # TODO: Remove this direct URL after migrating to Consul-based discovery for coupon-user.
         user: http://127.0.0.1:10031
 
 mybatis-plus:
